@@ -5,7 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
 from django.db import transaction
-from django.db.models import Q
+from django.db.models import Q, Value
+from django.db.models.functions import Concat
 from .models import Department, JobTitle, Employee
 from accounts.permissions import IsAdminOrHR,IsOwnerAdminOrHR,IsAdmin,IsHR
 from TalentFlow.pagination import StandardResultsSetPagination
@@ -325,9 +326,6 @@ def dashboard_stats(request):
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
-
-from django.db.models import Q, Value
-from django.db.models.functions import Concat
 
 @api_view(['GET'])
 @permission_classes([IsAdminOrHR])
