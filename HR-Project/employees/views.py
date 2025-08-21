@@ -326,25 +326,66 @@ def dashboard_stats(request):
         )
 
 
+from django.db.models import Q, Value
+from django.db.models.functions import Concat
+
 @api_view(['GET'])
 @permission_classes([IsAdminOrHR])
 def search_employees(request):
     """
     GET: Search employees by name, phone, or national_id with pagination
+    Enhanced to support full name search using database concatenation
     """
-    query = request.query_params.get('q', '')
+    query = request.query_params.get('q', '').strip()
     if not query:
         return Response(
             {'error': 'Query parameter "q" is required'},
             status=status.HTTP_400_BAD_REQUEST
         )
 
-    employees = Employee.objects.filter(
-        Q(first_name__icontains=query) |
-        Q(last_name__icontains=query) |
-        Q(phone__icontains=query) |
-        Q(national_id__icontains=query)
-    ).select_related('department', 'job_title')
+    # Split query into words for better name matching
+    query_words = query.split()
+    
+    # Create Q objects for different search scenarios
+    search_conditions = Q()
+    
+    # Search in phone and national_id
+    search_conditions |= Q(phone__icontains=query)
+    search_conditions |= Q(national_id__icontains=query)
+    
+    # Search in individual name fields
+    for word in query_words:
+        search_conditions |= Q(first_name__icontains=word)
+        search_conditions |= Q(last_name__icontains=word)
+
+    # Get employees with annotated full name for better full name search
+    employees = Employee.objects.annotate(
+        full_name_concat=Concat('first_name', Value(' '), 'last_name')
+    ).filter(
+        Q(search_conditions) |  # Original search conditions
+        Q(full_name_concat__icontains=query)  # Full name search
+    ).select_related('department', 'job_title').distinct()
+
+    # Order by relevance (exact matches first)
+    if len(query_words) >= 2:
+        # Priority for full name matches
+        employees = employees.extra(
+            select={
+                'name_relevance': """
+                    CASE 
+                        WHEN LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(%s) THEN 1
+                        WHEN LOWER(first_name) LIKE LOWER(%s) AND LOWER(last_name) LIKE LOWER(%s) THEN 2
+                        WHEN LOWER(first_name) LIKE LOWER(%s) OR LOWER(last_name) LIKE LOWER(%s) THEN 3
+                        ELSE 4
+                    END
+                """
+            },
+            select_params=[
+                f'%{query}%',  # Full name match
+                f'%{query_words[0]}%', f'%{query_words[-1]}%',  # First and last word match
+                f'%{query_words[0]}%', f'%{query_words[0]}%'   # Individual word matches
+            ]
+        ).order_by('name_relevance', 'first_name', 'last_name')
 
     paginator = StandardResultsSetPagination()
     result_page = paginator.paginate_queryset(employees, request)

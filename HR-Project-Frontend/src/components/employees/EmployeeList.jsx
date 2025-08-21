@@ -35,15 +35,20 @@ const EmployeeList = () => {
       
       if (searchTerm.trim()) {
         response = await employeeService.searchEmployees(searchTerm, currentPage);
+        // Handle search response structure
+        setEmployees(response.results?.results || response.results || []);
+        setTotalCount(response.results?.count || response.count || 0);
+        setTotalPages(Math.ceil((response.results?.count || response.count || 0) / 10));
       } else {
         response = await employeeService.getEmployees(currentPage, filters);
+        // Handle regular response structure
+        setEmployees(response.results || response.data || []);
+        setTotalCount(response.count || 0);
+        setTotalPages(Math.ceil((response.count || 0) / 10));
       }
-
-      setEmployees(response.results || response.data);
-      setTotalPages(Math.ceil(response.count / 10));
-      setTotalCount(response.count);
     } catch (err) {
       setError('Failed to fetch employees');
+      setEmployees([]); // Ensure employees is always an array
     } finally {
       setLoading(false);
     }
@@ -79,6 +84,8 @@ const EmployeeList = () => {
       [key]: value
     }));
     setCurrentPage(1);
+    // Clear search when applying filters
+    setSearchTerm('');
   };
 
   const handleStatusToggle = async (id, currentStatus) => {
@@ -99,6 +106,12 @@ const EmployeeList = () => {
         setError('Failed to delete employee');
       }
     }
+  };
+
+  const clearSearch = () => {
+    setSearchTerm('');
+    setCurrentPage(1);
+    fetchEmployees();
   };
 
   if (loading && employees.length === 0) return <LoadingSpinner />;
@@ -125,19 +138,33 @@ const EmployeeList = () => {
           <form onSubmit={handleSearch}>
             <div className="row g-3">
               <div className="col-md-4">
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Search by name, phone, or national ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+                <div className="input-group">
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Search by full name, phone, or national ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    title="Examples: 'Ahmed Mahrous', 'Ahmed', '01234567890'"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      onClick={clearSearch}
+                      title="Clear search"
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="col-md-2">
                 <select
                   className="form-select"
                   value={filters.department}
                   onChange={(e) => handleFilterChange('department', e.target.value)}
+                  disabled={searchTerm.trim() !== ''}
                 >
                   <option value="">All Departments</option>
                   {departments.map(dept => (
@@ -152,6 +179,7 @@ const EmployeeList = () => {
                   className="form-select"
                   value={filters.job_title}
                   onChange={(e) => handleFilterChange('job_title', e.target.value)}
+                  disabled={searchTerm.trim() !== ''}
                 >
                   <option value="">All Job Titles</option>
                   {jobTitles.map(title => (
@@ -166,6 +194,7 @@ const EmployeeList = () => {
                   className="form-select"
                   value={filters.active}
                   onChange={(e) => handleFilterChange('active', e.target.value)}
+                  disabled={searchTerm.trim() !== ''}
                 >
                   <option value="">All Status</option>
                   <option value="true">Active</option>
@@ -180,6 +209,20 @@ const EmployeeList = () => {
               </div>
             </div>
           </form>
+          {searchTerm && (
+            <div className="mt-2">
+              <small className="text-muted">
+                Searching for: "<strong>{searchTerm}</strong>" 
+                <button 
+                  type="button" 
+                  className="btn btn-link btn-sm p-0 ms-1" 
+                  onClick={clearSearch}
+                >
+                  (clear)
+                </button>
+              </small>
+            </div>
+          )}
         </div>
       </div>
 
@@ -204,7 +247,7 @@ const EmployeeList = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {employees.map((employee) => (
+                    {Array.isArray(employees) && employees.map((employee) => (
                       <tr key={employee.id}>
                         <td>
                           <Link 
@@ -261,10 +304,12 @@ const EmployeeList = () => {
                 </table>
               </div>
 
-              {employees.length === 0 && !loading && (
+              {(!Array.isArray(employees) || employees.length === 0) && !loading && (
                 <div className="text-center py-4">
                   <i className="fas fa-users fa-3x text-muted mb-3"></i>
-                  <p className="text-muted">No employees found.</p>
+                  <p className="text-muted">
+                    {searchTerm ? `No employees found matching "${searchTerm}".` : 'No employees found.'}
+                  </p>
                 </div>
               )}
 
