@@ -1,3 +1,4 @@
+// src/context/AuthContext.jsx
 import React, { createContext, useState, useContext, useEffect } from 'react';
 import { getToken, getTokenPayload, removeTokens } from '../utils/token';
 
@@ -15,24 +16,35 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  // Function to extract user data from token
+  const getUserFromToken = () => {
     const token = getToken();
     if (token) {
       const payload = getTokenPayload(token);
       if (payload) {
-        setUser({
+        return {
           id: payload.user_id,
           username: payload.username,
           email: payload.email,
-          role: payload.role
-        });
+          role: payload.role,
+          employee_id: payload.employee_id
+        };
       }
     }
+    return null;
+  };
+
+  useEffect(() => {
+    const userData = getUserFromToken();
+    setUser(userData);
     setLoading(false);
   }, []);
 
   const login = (tokens, userData) => {
-    setUser(userData);
+    // Instead of using the passed userData, get fresh data from the token
+    // This ensures we get the latest token payload including employee_id
+    const freshUserData = getUserFromToken();
+    setUser(freshUserData);
   };
 
   const logout = () => {

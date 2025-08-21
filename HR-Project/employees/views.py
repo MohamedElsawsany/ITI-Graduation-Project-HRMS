@@ -159,11 +159,40 @@ class EmployeeCreateView(generics.CreateAPIView):
 class EmployeeDetailView(generics.RetrieveAPIView):
     """
     GET: Retrieve a specific employee with full details including department and job title info
+    - HR and Admin can see any employee's details
+    - Employees can only see their own details
     """
     queryset = Employee.objects.select_related('department', 'job_title').all()
     serializer_class = EmployeeDetailSerializer
     authentication_classes = [JWTAuthentication]
-    permission_classes = [IsAdminOrHR]
+    permission_classes = [IsAuthenticated]  # Just basic authentication
+
+    def retrieve(self, request, *args, **kwargs):
+        """Override to add custom permission logic"""
+        employee = self.get_object()
+        user = request.user
+        
+        # Check if user is Admin or HR - they can see any employee
+        if user.is_superuser or getattr(user, 'role', None) in ['Admin', 'HR']:
+            serializer = self.get_serializer(employee)
+            return Response(serializer.data)
+        
+        # Check if regular user is trying to access their own profile
+        try:
+            user_employee = Employee.objects.get(user=user)
+            if employee.id == user_employee.id:
+                serializer = self.get_serializer(employee)
+                return Response(serializer.data)
+            else:
+                return Response(
+                    {'error': 'You can only view your own employee details'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        except Employee.DoesNotExist:
+            return Response(
+                {'error': 'You do not have an associated employee profile'},
+                status=status.HTTP_403_FORBIDDEN
+            )
 
 
 class EmployeeUpdateView(generics.UpdateAPIView):

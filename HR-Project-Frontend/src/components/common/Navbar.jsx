@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
 const Navbar = ({ toggleSidebar }) => {
@@ -63,6 +64,13 @@ const Navbar = ({ toggleSidebar }) => {
               </li>
               <li><hr className="dropdown-divider" /></li>
               <li>
+                <Link 
+                    to={`/employees/${user?.employee_id}`} 
+                    className="dropdown-item"
+                  >
+                    <i className="fas fa-user me-2"></i>
+                    Profile
+                  </Link>
                 <button className="dropdown-item" onClick={handleLogout}>
                   <i className="fas fa-sign-out-alt me-2"></i>
                   Logout
