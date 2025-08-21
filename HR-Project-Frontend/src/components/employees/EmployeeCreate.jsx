@@ -109,7 +109,7 @@ const EmployeeCreate = () => {
 
       <form onSubmit={handleSubmit}>
         <div className="row">
-          <div className="col-md-8">
+          <div className="col-12">
             <div className="card">
               <div className="card-header">
                 <h5 className="mb-0">Employee Information</h5>

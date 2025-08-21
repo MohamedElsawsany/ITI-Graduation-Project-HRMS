@@ -1,12 +1,34 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
 
   const handleLogout = () => {
     logout();
+    setDropdownOpen(false);
   };
+
+  const toggleDropdown = (e) => {
+    e.preventDefault();
+    setDropdownOpen(!dropdownOpen);
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   return (
     <nav className="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -24,15 +46,16 @@ const Navbar = ({ toggleSidebar }) => {
         </span>
 
         <div className="navbar-nav ms-auto">
-          <div className="nav-item dropdown">
+          <div className="nav-item dropdown" ref={dropdownRef}>
             <button
               className="btn btn-outline-light dropdown-toggle"
-              data-bs-toggle="dropdown"
+              onClick={toggleDropdown}
+              aria-expanded={dropdownOpen}
             >
               <i className="fas fa-user me-2"></i>
               {user?.username}
             </button>
-            <ul className="dropdown-menu dropdown-menu-end">
+            <ul className={`dropdown-menu dropdown-menu-end ${dropdownOpen ? 'show' : ''}`}>
               <li>
                 <span className="dropdown-item-text">
                   <small className="text-muted">Role: {user?.role}</small>

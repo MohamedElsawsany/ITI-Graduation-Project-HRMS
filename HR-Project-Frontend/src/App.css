@@ -76,10 +76,21 @@
   }
 }
 
-/* Updated navbar styles */
+/* Updated navbar styles - FIX: Added proper positioning */
 .navbar {
   background: linear-gradient(90deg, #1e3a8a 0%, #2563eb 100%) !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+  position: relative;
+  z-index: 1001; /* Higher than sidebar */
+  margin-left: 250px; /* Account for sidebar width on desktop */
+  transition: margin-left 0.3s ease;
+}
+
+/* Mobile navbar positioning */
+@media (max-width: 768px) {
+  .navbar {
+    margin-left: 0 !important;
+  }
 }
 
 .navbar-brand {
@@ -260,6 +271,39 @@
 .modal-title {
   color: #1e3a8a;
   font-weight: 600;
+}
+
+/* Fix dropdown expanding navbar on mobile */
+.navbar .dropdown-menu {
+  position: absolute !important;
+  top: 100% !important;
+  right: 0 !important;
+  left: auto !important;
+  z-index: 1050;
+  margin-top: 0.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  border: none;
+}
+
+.navbar .dropdown-toggle::after {
+  margin-left: 0.5rem;
+}
+
+/* Ensure dropdown doesn't affect navbar height */
+.navbar .nav-item.dropdown {
+  position: static;
+}
+
+@media (max-width: 768px) {
+  .navbar .dropdown-menu {
+    position: absolute !important;
+    transform: none !important;
+    right: 1rem !important;
+    left: auto !important;
+    top: calc(100% + 0.25rem) !important;
+    min-width: 200px;
+  }
 }
 
 /* Sidebar toggle button for mobile */
