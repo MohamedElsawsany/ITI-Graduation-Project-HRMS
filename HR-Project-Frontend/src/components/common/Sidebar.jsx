@@ -1,3 +1,4 @@
+// src/components/common/Sidebar.jsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -31,6 +32,30 @@ const Sidebar = ({ isVisible, onClose }) => {
       path: '/job-titles',
       icon: 'fas fa-briefcase',
       label: 'Job Titles',
+      roles: ['admin', 'hr']
+    },
+    {
+      path: '/attendance',
+      icon: 'fas fa-clock',
+      label: 'Attendance',
+      roles: ['admin', 'hr', 'employee']
+    },
+    {
+      path: '/attendance/list',
+      icon: 'fas fa-calendar-alt',
+      label: 'Attendance Records',
+      roles: ['admin', 'hr', 'employee']
+    },
+    {
+      path: '/attendance/my-summary',
+      icon: 'fas fa-chart-line',
+      label: 'My Attendance Summary',
+      roles: ['admin', 'hr', 'employee']
+    },
+    {
+      path: '/attendance/reports',
+      icon: 'fas fa-chart-bar',
+      label: 'Attendance Reports',
       roles: ['admin', 'hr']
     },
     {

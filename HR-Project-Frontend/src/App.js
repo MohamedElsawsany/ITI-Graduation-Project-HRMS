@@ -17,6 +17,13 @@ import PayrollDetails from './components/payroll/PayrollDetails';
 import PayrollCreate from './components/payroll/PayrollCreate';
 import PayrollEdit from './components/payroll/PayrollEdit';
 import PayrollSummary from './components/payroll/PayrollSummary';
+// Attendance Components
+import AttendanceDashboard from './components/attendance/AttendanceDashboard';
+import AttendanceList from './components/attendance/AttendanceList';
+import AttendanceCreate from './components/attendance/AttendanceCreate';
+import AttendanceEdit from './components/attendance/AttendanceEdit';
+import MyAttendanceSummary from './components/attendance/MyAttendanceSummary';
+import AttendanceReports from './components/attendance/AttendanceReports';
 import Layout from './components/common/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
@@ -55,6 +62,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      
+      {/* Employee Routes */}
       <Route
         path="/employees"
         element={
@@ -95,6 +104,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      
+      {/* Department & Job Title Routes */}
       <Route
         path="/departments"
         element={
@@ -115,6 +126,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      
+      {/* Leave Routes */}
       <Route
         path="/leave-requests"
         element={
@@ -135,6 +148,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      
       {/* Payroll Routes */}
       <Route
         path="/payrolls"
@@ -196,6 +210,70 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+
+      {/* Attendance Routes */}
+      <Route
+        path="/attendance"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AttendanceDashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/attendance/list"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AttendanceList />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/attendance/create"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <AttendanceCreate />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/attendance/:id/edit"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <AttendanceEdit />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/attendance/my-summary"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MyAttendanceSummary />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/attendance/reports"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <AttendanceReports />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Default Routes */}
       <Route path="/" element={<Navigate to="/dashboard" />} />
       <Route path="*" element={<Navigate to="/dashboard" />} />
     </Routes>
