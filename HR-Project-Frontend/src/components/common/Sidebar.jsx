@@ -34,6 +34,18 @@ const Sidebar = ({ isVisible, onClose }) => {
       roles: ['admin', 'hr']
     },
     {
+      path: '/payrolls',
+      icon: 'fas fa-money-bill-wave',
+      label: 'Payroll Management',
+      roles: ['admin', 'hr']
+    },
+    {
+      path: '/my-payrolls',
+      icon: 'fas fa-receipt',
+      label: 'My Payrolls',
+      roles: ['admin', 'hr', 'employee']
+    },
+    {
       path: '/leave-requests',
       icon: 'fas fa-calendar-alt',
       label: 'Leave Requests',

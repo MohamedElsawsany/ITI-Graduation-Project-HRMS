@@ -11,6 +11,12 @@ import DepartmentList from './components/departments/DepartmentList';
 import JobTitleList from './components/jobTitles/JobTitleList';
 import LeaveRequestList from './components/leaves/LeaveRequestList';
 import MyLeaveRequests from './components/leaves/MyLeaveRequests';
+import PayrollList from './components/payroll/PayrollList';
+import MyPayrolls from './components/payroll/MyPayrolls';
+import PayrollDetails from './components/payroll/PayrollDetails';
+import PayrollCreate from './components/payroll/PayrollCreate';
+import PayrollEdit from './components/payroll/PayrollEdit';
+import PayrollSummary from './components/payroll/PayrollSummary';
 import Layout from './components/common/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
@@ -125,6 +131,67 @@ const AppRoutes = () => {
           <ProtectedRoute>
             <Layout>
               <MyLeaveRequests />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      {/* Payroll Routes */}
+      <Route
+        path="/payrolls"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <PayrollList />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payrolls/create"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <PayrollCreate />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payrolls/summary"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <PayrollSummary />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payrolls/:id"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr', 'employee']}>
+            <Layout>
+              <PayrollDetails />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/payrolls/:id/edit"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <PayrollEdit />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/my-payrolls"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MyPayrolls />
             </Layout>
           </ProtectedRoute>
         }
