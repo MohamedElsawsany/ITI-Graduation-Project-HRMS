@@ -21,6 +21,7 @@ from .serializers import (
 )
 
 
+
 # 1. List all payrolls (Admin and HR only)
 class PayrollListView(generics.ListAPIView):
     """
@@ -124,18 +125,23 @@ class PayrollCreateView(generics.CreateAPIView):
     @transaction.atomic
     def create(self, request, *args, **kwargs):
         """Override to ensure atomic transaction and add history"""
-        response = super().create(request, *args, **kwargs)
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         
-        if response.status_code == status.HTTP_201_CREATED:
-            payroll = Payroll.objects.get(id=response.data['id'])
-            # Create history record
-            PayrollHistory.objects.create(
-                payroll=payroll,
-                changed_by=request.user,
-                change_description=f"Payroll record created with status '{payroll.status}'"
-            )
+        # Save the payroll object
+        payroll = serializer.save()
         
-        return response
+        # Create history record
+        PayrollHistory.objects.create(
+            payroll=payroll,
+            changed_by=request.user,
+            change_description=f"Payroll record created with status '{payroll.status}'"
+        )
+        
+        # Return the created payroll data including the ID
+        response_data = serializer.data
+        headers = self.get_success_headers(response_data)
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 # 4. Payroll detail view

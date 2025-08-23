@@ -154,18 +154,36 @@ const PayrollCreate = () => {
         notes: formData.notes || ''
       };
 
-      console.log('Submitting payroll data:', payrollData); // Debug log
+      console.log('Submitting payroll data:', payrollData);
 
       const result = await payrollService.createPayroll(payrollData);
-      console.log('Payroll created successfully:', result); // Debug log
-      navigate(`/payrolls/${result.id}`);
+      console.log('Payroll created successfully:', result);
+      
+      // Check if the result has an id, if not, navigate to payrolls list
+      if (result && result.id) {
+        navigate(`/payrolls/${result.id}`);
+      } else {
+        // Fallback: navigate to payrolls list with success message
+        navigate('/payrolls', { state: { message: 'Payroll created successfully!' } });
+      }
     } catch (err) {
-      console.error('Error creating payroll:', err); // Debug log
+      console.error('Error creating payroll:', err);
       
       if (err.response?.status === 400 && err.response?.data) {
         // Handle validation errors from backend
         if (typeof err.response.data === 'object') {
-          setFormErrors(err.response.data);
+          // Handle both single field errors and non_field_errors
+          const backendErrors = {};
+          Object.keys(err.response.data).forEach(key => {
+            if (key === 'non_field_errors') {
+              setError(err.response.data[key].join(', '));
+            } else {
+              backendErrors[key] = Array.isArray(err.response.data[key]) 
+                ? err.response.data[key].join(', ')
+                : err.response.data[key];
+            }
+          });
+          setFormErrors(backendErrors);
         } else if (typeof err.response.data === 'string') {
           setError(err.response.data);
         } else {

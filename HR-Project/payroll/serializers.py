@@ -56,10 +56,11 @@ class PayrollCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payroll
         fields = [
-            'employee', 'pay_period_start', 'pay_period_end', 'base_salary',
+            'id', 'employee', 'pay_period_start', 'pay_period_end', 'base_salary',
             'overtime_hours', 'overtime_rate', 'bonuses', 'deductions',
             'tax_deduction', 'insurance_deduction', 'notes'
         ]
+        read_only_fields = ['id']  # Make id read-only so it's included in response
 
     def validate(self, data):
         # Validate date range
