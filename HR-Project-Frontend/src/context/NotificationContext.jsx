@@ -1,221 +1,9 @@
 // src/context/NotificationContext.jsx
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { notificationService } from '../services/notifications';
 import { useAuth } from './AuthContext';
 
 const NotificationContext = createContext();
-
-const initialState = {
-  notifications: [],
-  unreadCount: 0,
-  loading: false,
-  error: null,
-  preferences: null
-};
-
-const notificationReducer = (state, action) => {
-  switch (action.type) {
-    case 'SET_LOADING':
-      return { ...state, loading: action.payload };
-    
-    case 'SET_ERROR':
-      return { ...state, error: action.payload, loading: false };
-    
-    case 'SET_NOTIFICATIONS':
-      return { ...state, notifications: action.payload, loading: false };
-    
-    case 'ADD_NOTIFICATION':
-      return { 
-        ...state, 
-        notifications: [action.payload, ...state.notifications],
-        unreadCount: state.unreadCount + 1
-      };
-    
-    case 'UPDATE_NOTIFICATION':
-      return {
-        ...state,
-        notifications: state.notifications.map(notification =>
-          notification.id === action.payload.id ? action.payload : notification
-        )
-      };
-    
-    case 'REMOVE_NOTIFICATION':
-      return {
-        ...state,
-        notifications: state.notifications.filter(n => n.id !== action.payload)
-      };
-    
-    case 'SET_UNREAD_COUNT':
-      return { ...state, unreadCount: action.payload };
-    
-    case 'MARK_AS_READ':
-      const updatedNotifications = state.notifications.map(notification =>
-        action.payload.includes(notification.id)
-          ? { ...notification, is_read: true, read_at: new Date().toISOString() }
-          : notification
-      );
-      const newUnreadCount = updatedNotifications.filter(n => !n.is_read).length;
-      return {
-        ...state,
-        notifications: updatedNotifications,
-        unreadCount: newUnreadCount
-      };
-    
-    case 'MARK_ALL_AS_READ':
-      const allReadNotifications = state.notifications.map(notification => ({
-        ...notification,
-        is_read: true,
-        read_at: new Date().toISOString()
-      }));
-      return {
-        ...state,
-        notifications: allReadNotifications,
-        unreadCount: 0
-      };
-    
-    case 'SET_PREFERENCES':
-      return { ...state, preferences: action.payload };
-    
-    case 'CLEAR_NOTIFICATIONS':
-      return { ...state, notifications: [], unreadCount: 0 };
-    
-    default:
-      return state;
-  }
-};
-
-export const NotificationProvider = ({ children }) => {
-  const [state, dispatch] = useReducer(notificationReducer, initialState);
-  const { user } = useAuth();
-
-  // Load initial notifications and unread count
-  useEffect(() => {
-    if (user) {
-      loadNotifications();
-      loadUnreadCount();
-      loadPreferences();
-    } else {
-      dispatch({ type: 'CLEAR_NOTIFICATIONS' });
-    }
-  }, [user]);
-
-  // Auto-refresh unread count every 30 seconds
-  useEffect(() => {
-    if (!user) return;
-
-    const interval = setInterval(() => {
-      loadUnreadCount();
-    }, 30000);
-
-    return () => clearInterval(interval);
-  }, [user]);
-
-  const loadNotifications = async (page = 1, filters = {}) => {
-    try {
-      dispatch({ type: 'SET_LOADING', payload: true });
-      const response = await notificationService.getMyNotifications(page, filters);
-      dispatch({ type: 'SET_NOTIFICATIONS', payload: response.results || response });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  };
-
-  const loadUnreadCount = async () => {
-    try {
-      const response = await notificationService.getUnreadCount();
-      dispatch({ type: 'SET_UNREAD_COUNT', payload: response.unread_count });
-    } catch (error) {
-      console.error('Failed to load unread count:', error);
-    }
-  };
-
-  const loadPreferences = async () => {
-    try {
-      const preferences = await notificationService.getNotificationPreferences();
-      dispatch({ type: 'SET_PREFERENCES', payload: preferences });
-    } catch (error) {
-      console.error('Failed to load preferences:', error);
-    }
-  };
-
-  const markAsRead = async (notificationIds) => {
-    try {
-      await notificationService.markAsRead(notificationIds);
-      dispatch({ type: 'MARK_AS_READ', payload: notificationIds });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  };
-
-  const markAllAsRead = async () => {
-    try {
-      await notificationService.markAllAsRead();
-      dispatch({ type: 'MARK_ALL_AS_READ' });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  };
-
-  const createNotification = async (notificationData) => {
-    try {
-      const newNotification = await notificationService.createNotification(notificationData);
-      dispatch({ type: 'ADD_NOTIFICATION', payload: newNotification });
-      return newNotification;
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
-    }
-  };
-
-  const deleteNotification = async (id) => {
-    try {
-      await notificationService.deleteNotification(id);
-      dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  };
-
-  const deleteReadNotifications = async () => {
-    try {
-      await notificationService.deleteReadNotifications();
-      const unreadNotifications = state.notifications.filter(n => !n.is_read);
-      dispatch({ type: 'SET_NOTIFICATIONS', payload: unreadNotifications });
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-    }
-  };
-
-  const updatePreferences = async (preferencesData) => {
-    try {
-      const updatedPreferences = await notificationService.updateNotificationPreferences(preferencesData);
-      dispatch({ type: 'SET_PREFERENCES', payload: updatedPreferences });
-      return updatedPreferences;
-    } catch (error) {
-      dispatch({ type: 'SET_ERROR', payload: error.message });
-      throw error;
-    }
-  };
-
-  const value = {
-    ...state,
-    loadNotifications,
-    loadUnreadCount,
-    markAsRead,
-    markAllAsRead,
-    createNotification,
-    deleteNotification,
-    deleteReadNotifications,
-    updatePreferences,
-    loadPreferences
-  };
-
-  return (
-    <NotificationContext.Provider value={value}>
-      {children}
-    </NotificationContext.Provider>
-  );
-};
 
 export const useNotifications = () => {
   const context = useContext(NotificationContext);
@@ -223,4 +11,261 @@ export const useNotifications = () => {
     throw new Error('useNotifications must be used within a NotificationProvider');
   }
   return context;
+};
+
+export const NotificationProvider = ({ children }) => {
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [preferences, setPreferences] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Load unread count
+  const loadUnreadCount = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const response = await notificationService.getUnreadCount();
+      setUnreadCount(response.unread_count || 0);
+    } catch (error) {
+      console.error('Failed to load unread count:', error);
+      setUnreadCount(0);
+    }
+  }, [user]);
+
+  // Load notifications
+  const loadNotifications = useCallback(async (page = 1, filters = {}) => {
+    if (!user) return { results: [], count: 0 };
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await notificationService.getMyNotifications(page, {
+        limit: filters.limit || 10,
+        ...filters
+      });
+      
+      // Handle both paginated and simple array responses
+      if (response.results) {
+        setNotifications(response.results);
+        return response;
+      } else if (Array.isArray(response)) {
+        setNotifications(response);
+        return { results: response, count: response.length };
+      } else {
+        setNotifications([]);
+        return { results: [], count: 0 };
+      }
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+      setError(error.response?.data?.detail || 'Failed to load notifications');
+      setNotifications([]);
+      return { results: [], count: 0 };
+    } finally {
+      setLoading(false);
+    }
+  }, [user]);
+
+  // Load preferences
+  const loadPreferences = useCallback(async () => {
+    if (!user) return;
+    
+    try {
+      const response = await notificationService.getNotificationPreferences();
+      setPreferences(response);
+    } catch (error) {
+      console.error('Failed to load preferences:', error);
+      // Set default preferences if loading fails
+      setPreferences({
+        email_notifications: true,
+        email_leave_requests: true,
+        email_payroll_updates: true,
+        email_attendance_alerts: true,
+        email_general_announcements: true,
+        in_app_notifications: true,
+        push_notifications: false,
+        quiet_hours_enabled: false,
+        quiet_hours_start: '',
+        quiet_hours_end: ''
+      });
+    }
+  }, [user]);
+
+  // Mark notifications as read
+  const markAsRead = useCallback(async (notificationIds) => {
+    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return;
+    }
+
+    try {
+      await notificationService.markAsRead(notificationIds);
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => 
+          notificationIds.includes(notification.id) 
+            ? { ...notification, is_read: true, read_at: new Date().toISOString() }
+            : notification
+        )
+      );
+      
+      // Update unread count
+      const newUnreadCount = Math.max(0, unreadCount - notificationIds.length);
+      setUnreadCount(newUnreadCount);
+      
+    } catch (error) {
+      console.error('Failed to mark notifications as read:', error);
+      throw error;
+    }
+  }, [unreadCount]);
+
+  // Mark all notifications as read
+  const markAllAsRead = useCallback(async () => {
+    try {
+      await notificationService.markAllAsRead();
+      
+      // Update local state
+      setNotifications(prev => 
+        prev.map(notification => ({
+          ...notification,
+          is_read: true,
+          read_at: new Date().toISOString()
+        }))
+      );
+      
+      setUnreadCount(0);
+      
+    } catch (error) {
+      console.error('Failed to mark all notifications as read:', error);
+      throw error;
+    }
+  }, []);
+
+  // Create notification (Admin/HR only)
+  const createNotification = useCallback(async (notificationData) => {
+    try {
+      const response = await notificationService.createNotification(notificationData);
+      return response;
+    } catch (error) {
+      console.error('Failed to create notification:', error);
+      throw error;
+    }
+  }, []);
+
+  // Delete notification
+  const deleteNotification = useCallback(async (notificationId) => {
+    try {
+      await notificationService.deleteNotification(notificationId);
+      
+      // Update local state
+      setNotifications(prev => prev.filter(notification => notification.id !== notificationId));
+      
+      // Update unread count if it was unread
+      const deletedNotification = notifications.find(n => n.id === notificationId);
+      if (deletedNotification && !deletedNotification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+    } catch (error) {
+      console.error('Failed to delete notification:', error);
+      throw error;
+    }
+  }, [notifications]);
+
+  // Delete read notifications
+  const deleteReadNotifications = useCallback(async () => {
+    try {
+      await notificationService.deleteReadNotifications();
+      
+      // Update local state - remove read notifications
+      setNotifications(prev => prev.filter(notification => !notification.is_read));
+      
+    } catch (error) {
+      console.error('Failed to delete read notifications:', error);
+      throw error;
+    }
+  }, []);
+
+  // Update preferences
+  const updatePreferences = useCallback(async (preferencesData) => {
+    try {
+      const response = await notificationService.updateNotificationPreferences(preferencesData);
+      setPreferences(response);
+      return response;
+    } catch (error) {
+      console.error('Failed to update preferences:', error);
+      throw error;
+    }
+  }, []);
+
+  // Get notification statistics
+  const getNotificationStats = useCallback(async () => {
+    if (!user) return null;
+    
+    try {
+      const response = await notificationService.getNotificationStats();
+      return response;
+    } catch (error) {
+      console.error('Failed to get notification stats:', error);
+      return null;
+    }
+  }, [user]);
+
+  // Initialize data when user changes
+  useEffect(() => {
+    if (user) {
+      loadUnreadCount();
+      loadPreferences();
+    } else {
+      // Reset state when user logs out
+      setNotifications([]);
+      setUnreadCount(0);
+      setPreferences(null);
+      setError(null);
+    }
+  }, [user, loadUnreadCount, loadPreferences]);
+
+  // Auto-refresh unread count every 30 seconds
+  useEffect(() => {
+    if (!user) return;
+
+    const interval = setInterval(() => {
+      loadUnreadCount();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
+  }, [user, loadUnreadCount]);
+
+  const contextValue = {
+    // State
+    notifications,
+    unreadCount,
+    preferences,
+    loading,
+    error,
+    
+    // Actions
+    loadNotifications,
+    loadUnreadCount,
+    loadPreferences,
+    markAsRead,
+    markAllAsRead,
+    createNotification,
+    deleteNotification,
+    deleteReadNotifications,
+    updatePreferences,
+    getNotificationStats,
+    
+    // Utilities
+    setError,
+    setLoading
+  };
+
+  return (
+    <NotificationContext.Provider value={contextValue}>
+      {children}
+    </NotificationContext.Provider>
+  );
 };

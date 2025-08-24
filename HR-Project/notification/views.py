@@ -1,3 +1,4 @@
+# notification/views.py
 from rest_framework import generics, status, filters
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
@@ -42,12 +43,20 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         user = self.request.user
         
+        # Get user's employee instance safely
+        employee_department = None
+        try:
+            if hasattr(user, 'employee') and user.employee:
+                employee_department = user.employee.department
+        except Exception:
+            employee_department = None
+        
         # Base queryset - user's notifications and global notifications
         queryset = Notification.objects.filter(
             Q(recipient=user) | 
             Q(is_global=True) |
-            Q(recipient_department=getattr(user, 'employee', None) and user.employee.department)
-        ).select_related('sender', 'recipient', 'recipient_department')
+            (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
+        ).select_related('sender', 'recipient', 'recipient_department').distinct()
         
         # Filter by read status
         is_read = self.request.query_params.get('is_read')
@@ -58,9 +67,15 @@ class NotificationListView(generics.ListAPIView):
         date_from = self.request.query_params.get('date_from')
         date_to = self.request.query_params.get('date_to')
         if date_from:
-            queryset = queryset.filter(created_at__date__gte=date_from)
+            try:
+                queryset = queryset.filter(created_at__date__gte=date_from)
+            except ValueError:
+                pass  # Invalid date format
         if date_to:
-            queryset = queryset.filter(created_at__date__lte=date_to)
+            try:
+                queryset = queryset.filter(created_at__date__lte=date_to)
+            except ValueError:
+                pass  # Invalid date format
         
         # Exclude expired notifications
         exclude_expired = self.request.query_params.get('exclude_expired', 'true')
@@ -100,17 +115,29 @@ class NotificationDetailView(generics.RetrieveUpdateDestroyAPIView):
         if hasattr(user, 'role') and user.role in ['admin', 'hr']:
             return Notification.objects.all()
         
+        # Get user's employee department safely
+        employee_department = None
+        try:
+            if hasattr(user, 'employee') and user.employee:
+                employee_department = user.employee.department
+        except Exception:
+            employee_department = None
+        
         # Regular users can only see their own notifications
         return Notification.objects.filter(
             Q(recipient=user) | 
             Q(is_global=True) |
-            Q(recipient_department=getattr(user, 'employee', None) and user.employee.department)
-        )
+            (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
+        ).distinct()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        # Mark as read when retrieved
-        if instance.recipient == request.user and not instance.is_read:
+        # Mark as read when retrieved by the recipient
+        if (instance.recipient == request.user or 
+            instance.is_global or 
+            (hasattr(request.user, 'employee') and 
+             request.user.employee and 
+             instance.recipient_department == request.user.employee.department)) and not instance.is_read:
             instance.mark_as_read()
         
         serializer = self.get_serializer(instance)
@@ -153,11 +180,22 @@ def mark_as_read(request):
     
     notification_ids = serializer.validated_data['notification_ids']
     
-    # Update notifications
+    # Get user's employee department safely
+    employee_department = None
+    try:
+        if hasattr(request.user, 'employee') and request.user.employee:
+            employee_department = request.user.employee.department
+    except Exception:
+        employee_department = None
+    
+    # Update notifications that belong to user
     updated_count = Notification.objects.filter(
         id__in=notification_ids,
-        recipient=request.user,
         is_read=False
+    ).filter(
+        Q(recipient=request.user) | 
+        Q(is_global=True) |
+        (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
     ).update(
         is_read=True,
         read_at=timezone.now()
@@ -173,10 +211,18 @@ def mark_as_read(request):
 @permission_classes([IsAuthenticated])
 def mark_all_as_read(request):
     """Mark all user's notifications as read"""
+    # Get user's employee department safely
+    employee_department = None
+    try:
+        if hasattr(request.user, 'employee') and request.user.employee:
+            employee_department = request.user.employee.department
+    except Exception:
+        employee_department = None
+    
     updated_count = Notification.objects.filter(
         Q(recipient=request.user) | 
         Q(is_global=True) |
-        Q(recipient_department=getattr(request.user, 'employee', None) and request.user.employee.department),
+        (Q(recipient_department=employee_department) if employee_department else Q(id__in=[])),
         is_read=False
     ).update(
         is_read=True,
@@ -193,6 +239,7 @@ def mark_all_as_read(request):
 @permission_classes([IsAuthenticated])
 def delete_read_notifications(request):
     """Delete all read notifications for the user"""
+    # Only delete notifications that directly belong to the user
     deleted_count, _ = Notification.objects.filter(
         recipient=request.user,
         is_read=True
@@ -210,12 +257,20 @@ def notification_stats(request):
     """Get notification statistics for the user"""
     user = request.user
     
+    # Get user's employee department safely
+    employee_department = None
+    try:
+        if hasattr(user, 'employee') and user.employee:
+            employee_department = user.employee.department
+    except Exception:
+        employee_department = None
+    
     # Get user's notifications
     user_notifications = Notification.objects.filter(
         Q(recipient=user) | 
         Q(is_global=True) |
-        Q(recipient_department=getattr(user, 'employee', None) and user.employee.department)
-    )
+        (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
+    ).distinct()
     
     # Calculate statistics
     total_notifications = user_notifications.count()
@@ -374,12 +429,20 @@ def unread_count(request):
     """Get count of unread notifications for the user"""
     user = request.user
     
+    # Get user's employee department safely
+    employee_department = None
+    try:
+        if hasattr(user, 'employee') and user.employee:
+            employee_department = user.employee.department
+    except Exception:
+        employee_department = None
+    
     unread_count = Notification.objects.filter(
         Q(recipient=user) | 
         Q(is_global=True) |
-        Q(recipient_department=getattr(user, 'employee', None) and user.employee.department),
+        (Q(recipient_department=employee_department) if employee_department else Q(id__in=[])),
         is_read=False
-    ).count()
+    ).distinct().count()
     
     return Response({'unread_count': unread_count})
 
@@ -391,11 +454,19 @@ def recent_notifications(request):
     user = request.user
     limit = int(request.query_params.get('limit', 5))
     
+    # Get user's employee department safely
+    employee_department = None
+    try:
+        if hasattr(user, 'employee') and user.employee:
+            employee_department = user.employee.department
+    except Exception:
+        employee_department = None
+    
     notifications = Notification.objects.filter(
         Q(recipient=user) | 
         Q(is_global=True) |
-        Q(recipient_department=getattr(user, 'employee', None) and user.employee.department)
-    ).order_by('-created_at')[:limit]
+        (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
+    ).distinct().order_by('-created_at')[:limit]
     
     serializer = NotificationSerializer(notifications, many=True)
     return Response(serializer.data)
@@ -437,13 +508,22 @@ def send_test_notification(request):
             {'error': 'Recipient not found'}, 
             status=status.HTTP_404_NOT_FOUND
         )
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to send test notification: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated, IsAdminOrHR])
 def cleanup_old_notifications(request):
     """Clean up old read notifications (Admin/HR only)"""
-    days_old = int(request.data.get('days_old', 30))
+    try:
+        days_old = int(request.data.get('days_old', 30))
+    except (ValueError, TypeError):
+        days_old = 30
+        
     cutoff_date = timezone.now() - timezone.timedelta(days=days_old)
     
     deleted_count, _ = Notification.objects.filter(

@@ -28,6 +28,7 @@ const NotificationList = () => {
   });
   const [selectedNotifications, setSelectedNotifications] = useState([]);
   const [showFilters, setShowFilters] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
     fetchNotifications();
@@ -35,10 +36,18 @@ const NotificationList = () => {
 
   const fetchNotifications = async () => {
     try {
-      const response = await loadNotifications(currentPage, filters);
+      const response = await loadNotifications(currentPage, {
+        ...filters,
+        limit: 10
+      });
+      
       if (response?.results) {
         setTotalPages(Math.ceil(response.count / 10));
         setTotalItems(response.count);
+      } else {
+        // Handle simple array response
+        setTotalPages(1);
+        setTotalItems(notifications?.length || 0);
       }
     } catch (error) {
       console.error('Failed to fetch notifications:', error);
@@ -49,6 +58,7 @@ const NotificationList = () => {
     const { name, value } = e.target;
     setFilters(prev => ({ ...prev, [name]: value }));
     setCurrentPage(1);
+    setSelectedNotifications([]);
   };
 
   const handleSelectNotification = (id) => {
@@ -70,34 +80,90 @@ const NotificationList = () => {
   };
 
   const handleMarkSelectedAsRead = async () => {
-    if (selectedNotifications.length > 0) {
+    if (selectedNotifications.length === 0) return;
+    
+    setActionLoading(true);
+    try {
       await markAsRead(selectedNotifications);
       setSelectedNotifications([]);
+      await fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to mark notifications as read:', error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedNotifications.length > 0 && window.confirm('Are you sure you want to delete selected notifications?')) {
+    if (selectedNotifications.length === 0) return;
+    
+    if (!window.confirm('Are you sure you want to delete selected notifications?')) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
       for (const id of selectedNotifications) {
         await deleteNotification(id);
       }
       setSelectedNotifications([]);
-      fetchNotifications();
+      await fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete notifications:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleMarkAllAsRead = async () => {
+    setActionLoading(true);
+    try {
+      await markAllAsRead();
+      await fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteReadNotifications = async () => {
+    if (!window.confirm('Are you sure you want to delete all read notifications?')) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await deleteReadNotifications();
+      await fetchNotifications(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to delete read notifications:', error);
+    } finally {
+      setActionLoading(false);
     }
   };
 
   const handleNotificationClick = async (notification) => {
-    if (!notification.is_read) {
-      await markAsRead([notification.id]);
-    }
-    // If there's an action URL, you could open it
-    if (notification.action_url) {
-      window.open(notification.action_url, '_blank');
+    try {
+      if (!notification.is_read) {
+        await markAsRead([notification.id]);
+        await fetchNotifications(); // Refresh to show updated state
+      }
+      // If there's an action URL, you could open it
+      if (notification.action_url) {
+        window.open(notification.action_url, '_blank');
+      }
+    } catch (error) {
+      console.error('Failed to handle notification click:', error);
     }
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
+    try {
+      return new Date(dateString).toLocaleString();
+    } catch (error) {
+      return 'Unknown date';
+    }
   };
 
   const getNotificationIcon = (type) => {
@@ -119,14 +185,14 @@ const NotificationList = () => {
   const getPriorityBadge = (priority) => {
     const colorMap = {
       'Urgent': 'bg-danger',
-      'High': 'bg-warning',
+      'High': 'bg-warning text-dark',
       'Medium': 'bg-info',
       'Low': 'bg-secondary'
     };
     return `badge ${colorMap[priority] || 'bg-secondary'}`;
   };
 
-  if (loading) return <LoadingSpinner />;
+  if (loading && notifications.length === 0) return <LoadingSpinner />;
 
   return (
     <div>
@@ -148,13 +214,19 @@ const NotificationList = () => {
               <button
                 className="btn btn-outline-primary btn-sm"
                 onClick={handleMarkSelectedAsRead}
+                disabled={actionLoading}
               >
-                <i className="fas fa-check me-1"></i>
+                {actionLoading ? (
+                  <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                ) : (
+                  <i className="fas fa-check me-1"></i>
+                )}
                 Mark Read ({selectedNotifications.length})
               </button>
               <button
                 className="btn btn-outline-danger btn-sm"
                 onClick={handleDeleteSelected}
+                disabled={actionLoading}
               >
                 <i className="fas fa-trash me-1"></i>
                 Delete ({selectedNotifications.length})
@@ -163,9 +235,14 @@ const NotificationList = () => {
           )}
           <button
             className="btn btn-primary btn-sm"
-            onClick={markAllAsRead}
+            onClick={handleMarkAllAsRead}
+            disabled={actionLoading}
           >
-            <i className="fas fa-check-double me-1"></i>
+            {actionLoading ? (
+              <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+            ) : (
+              <i className="fas fa-check-double me-1"></i>
+            )}
             Mark All Read
           </button>
         </div>
@@ -237,7 +314,8 @@ const NotificationList = () => {
               <div className="col-md-3 d-flex align-items-end">
                 <button
                   className="btn btn-outline-danger btn-sm"
-                  onClick={deleteReadNotifications}
+                  onClick={handleDeleteReadNotifications}
+                  disabled={actionLoading}
                 >
                   <i className="fas fa-trash me-1"></i>
                   Delete Read
@@ -251,129 +329,149 @@ const NotificationList = () => {
       {/* Notifications List */}
       <div className="card">
         <div className="card-body p-0">
-          {notifications.length > 0 ? (
-            <div className="notification-list">
-              {notifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`notification-item p-3 border-bottom ${!notification.is_read ? 'unread' : ''}`}
-                  onClick={() => handleNotificationClick(notification)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="d-flex align-items-start">
-                    <div className="form-check me-3">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        checked={selectedNotifications.includes(notification.id)}
-                        onChange={(e) => {
-                          e.stopPropagation();
-                          handleSelectNotification(notification.id);
-                        }}
-                      />
-                    </div>
-                    
-                    <div className="me-3">
-                      <i className={`${getNotificationIcon(notification.notification_type)} fa-lg`}></i>
-                    </div>
-                    
-                    <div className="flex-fill">
-                      <div className="d-flex justify-content-between align-items-start mb-2">
-                        <h6 className={`mb-0 ${!notification.is_read ? 'fw-bold' : ''}`}>
-                          {notification.title}
-                        </h6>
-                        <div className="d-flex align-items-center gap-2">
-                          <span className={getPriorityBadge(notification.priority)}>
-                            {notification.priority}
-                          </span>
-                          <small className="text-muted">
-                            {formatDate(notification.created_at)}
-                          </small>
-                        </div>
+          {notifications && notifications.length > 0 ? (
+            <>
+              {/* Select all header */}
+              <div className="p-3 border-bottom bg-light">
+                <div className="form-check">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    checked={notifications.length > 0 && selectedNotifications.length === notifications.length}
+                    onChange={handleSelectAll}
+                  />
+                  <label className="form-check-label">
+                    Select all notifications
+                  </label>
+                </div>
+              </div>
+              
+              <div className="notification-list">
+                {notifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    className={`notification-item p-3 border-bottom ${!notification.is_read ? 'unread' : ''}`}
+                    onClick={() => handleNotificationClick(notification)}
+                    style={{ cursor: 'pointer' }}
+                  >
+                    <div className="d-flex align-items-start">
+                      <div className="form-check me-3">
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          checked={selectedNotifications.includes(notification.id)}
+                          onChange={(e) => {
+                            e.stopPropagation();
+                            handleSelectNotification(notification.id);
+                          }}
+                        />
                       </div>
                       
-                      <p className="mb-2 text-muted">
-                        {notification.message}
-                      </p>
+                      <div className="me-3">
+                        <i className={`${getNotificationIcon(notification.notification_type)} fa-lg`}></i>
+                      </div>
                       
-                      <div className="d-flex justify-content-between align-items-center">
-                        <div className="d-flex align-items-center gap-3">
-                          {notification.sender_full_name && (
+                      <div className="flex-fill">
+                        <div className="d-flex justify-content-between align-items-start mb-2">
+                          <h6 className={`mb-0 ${!notification.is_read ? 'fw-bold' : ''}`}>
+                            {notification.title || 'No Title'}
+                          </h6>
+                          <div className="d-flex align-items-center gap-2">
+                            <span className={getPriorityBadge(notification.priority)}>
+                              {notification.priority}
+                            </span>
                             <small className="text-muted">
-                              <i className="fas fa-user me-1"></i>
-                              From: {notification.sender_full_name}
+                              {formatDate(notification.created_at)}
                             </small>
-                          )}
-                          <small className="text-muted">
-                            <i className="fas fa-tag me-1"></i>
-                            {notification.notification_type.replace('_', ' ').toUpperCase()}
-                          </small>
+                          </div>
                         </div>
                         
-                        <div className="d-flex align-items-center gap-2">
-                          {!notification.is_read && (
-                            <span className="badge bg-primary">New</span>
-                          )}
-                          {notification.action_url && (
-                            <small className="text-primary">
-                              <i className="fas fa-external-link-alt"></i>
+                        <p className="mb-2 text-muted">
+                          {notification.message || 'No message'}
+                        </p>
+                        
+                        <div className="d-flex justify-content-between align-items-center">
+                          <div className="d-flex align-items-center gap-3">
+                            {notification.sender_full_name && (
+                              <small className="text-muted">
+                                <i className="fas fa-user me-1"></i>
+                                From: {notification.sender_full_name}
+                              </small>
+                            )}
+                            <small className="text-muted">
+                              <i className="fas fa-tag me-1"></i>
+                              {notification.notification_type?.replace('_', ' ').toUpperCase()}
                             </small>
-                          )}
+                          </div>
+                          
+                          <div className="d-flex align-items-center gap-2">
+                            {!notification.is_read && (
+                              <span className="badge bg-primary">New</span>
+                            )}
+                            {notification.action_url && (
+                              <small className="text-primary">
+                                <i className="fas fa-external-link-alt"></i>
+                              </small>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Related object details */}
+                        {notification.related_leave_details && (
+                          <div className="mt-2 p-2 bg-light rounded">
+                            <small>
+                              <strong>Leave Request:</strong> {notification.related_leave_details.leave_type} 
+                              ({notification.related_leave_details.start_date} to {notification.related_leave_details.end_date})
+                              - Status: {notification.related_leave_details.status}
+                            </small>
+                          </div>
+                        )}
+
+                        {notification.related_payroll_details && (
+                          <div className="mt-2 p-2 bg-light rounded">
+                            <small>
+                              <strong>Payroll:</strong> Period {notification.related_payroll_details.pay_period_start} to {notification.related_payroll_details.pay_period_end}
+                              - Net Pay: ${notification.related_payroll_details.net_pay}
+                            </small>
+                          </div>
+                        )}
+
+                        {notification.related_attendance_details && (
+                          <div className="mt-2 p-2 bg-light rounded">
+                            <small>
+                              <strong>Attendance:</strong> {notification.related_attendance_details.date}
+                              - Status: {notification.related_attendance_details.status}
+                            </small>
+                          </div>
+                        )}
                       </div>
 
-                      {/* Related object details */}
-                      {notification.related_leave_details && (
-                        <div className="mt-2 p-2 bg-light rounded">
-                          <small>
-                            <strong>Leave Request:</strong> {notification.related_leave_details.leave_type} 
-                            ({notification.related_leave_details.start_date} to {notification.related_leave_details.end_date})
-                            - Status: {notification.related_leave_details.status}
-                          </small>
-                        </div>
-                      )}
-
-                      {notification.related_payroll_details && (
-                        <div className="mt-2 p-2 bg-light rounded">
-                          <small>
-                            <strong>Payroll:</strong> Period {notification.related_payroll_details.pay_period_start} to {notification.related_payroll_details.pay_period_end}
-                            - Net Pay: ${notification.related_payroll_details.net_pay}
-                          </small>
-                        </div>
-                      )}
-
-                      {notification.related_attendance_details && (
-                        <div className="mt-2 p-2 bg-light rounded">
-                          <small>
-                            <strong>Attendance:</strong> {notification.related_attendance_details.date}
-                            - Status: {notification.related_attendance_details.status}
-                          </small>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="ms-3">
-                      <button
-                        className="btn btn-sm btn-outline-danger"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (window.confirm('Are you sure you want to delete this notification?')) {
-                            deleteNotification(notification.id);
-                          }
-                        }}
-                      >
-                        <i className="fas fa-trash"></i>
-                      </button>
+                      <div className="ms-3">
+                        <button
+                          className="btn btn-sm btn-outline-danger"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm('Are you sure you want to delete this notification?')) {
+                              deleteNotification(notification.id);
+                            }
+                          }}
+                          disabled={actionLoading}
+                        >
+                          <i className="fas fa-trash"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-5">
               <i className="fas fa-bell-slash fa-3x text-muted mb-3"></i>
               <h5 className="text-muted">No notifications found</h5>
-              <p className="text-muted">You're all caught up!</p>
+              <p className="text-muted">
+                {Object.values(filters).some(f => f) ? 'Try adjusting your filters' : "You're all caught up!"}
+              </p>
             </div>
           )}
         </div>

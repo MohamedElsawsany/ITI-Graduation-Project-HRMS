@@ -1,3 +1,4 @@
+# notification/serializers.py
 from rest_framework import serializers
 from django.utils import timezone
 from .models import (
@@ -56,7 +57,7 @@ class NotificationSerializer(serializers.ModelSerializer):
             try:
                 employee = obj.sender.employee
                 return f"{employee.first_name} {employee.last_name}"
-            except:
+            except Exception:
                 return obj.sender.username
         return None
 
@@ -65,59 +66,71 @@ class NotificationSerializer(serializers.ModelSerializer):
             try:
                 employee = obj.recipient.employee
                 return f"{employee.first_name} {employee.last_name}"
-            except:
+            except Exception:
                 return obj.recipient.username
         return None
 
     def get_time_since(self, obj):
-        now = timezone.now()
-        diff = now - obj.created_at
-        
-        if diff.days > 0:
-            return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
-        elif diff.seconds > 3600:
-            hours = diff.seconds // 3600
-            return f"{hours} hour{'s' if hours > 1 else ''} ago"
-        elif diff.seconds > 60:
-            minutes = diff.seconds // 60
-            return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
-        else:
-            return "Just now"
+        try:
+            now = timezone.now()
+            diff = now - obj.created_at
+            
+            if diff.days > 0:
+                return f"{diff.days} day{'s' if diff.days > 1 else ''} ago"
+            elif diff.seconds > 3600:
+                hours = diff.seconds // 3600
+                return f"{hours} hour{'s' if hours > 1 else ''} ago"
+            elif diff.seconds > 60:
+                minutes = diff.seconds // 60
+                return f"{minutes} minute{'s' if minutes > 1 else ''} ago"
+            else:
+                return "Just now"
+        except Exception:
+            return "Unknown"
 
     def get_related_leave_details(self, obj):
         if obj.related_leave:
-            return {
-                'id': obj.related_leave.id,
-                'leave_type': obj.related_leave.leave_type,
-                'start_date': obj.related_leave.start_date,
-                'end_date': obj.related_leave.end_date,
-                'status': obj.related_leave.status,
-                'employee_name': f"{obj.related_leave.employee.first_name} {obj.related_leave.employee.last_name}"
-            }
+            try:
+                return {
+                    'id': obj.related_leave.id,
+                    'leave_type': obj.related_leave.leave_type,
+                    'start_date': obj.related_leave.start_date.strftime('%Y-%m-%d') if obj.related_leave.start_date else None,
+                    'end_date': obj.related_leave.end_date.strftime('%Y-%m-%d') if obj.related_leave.end_date else None,
+                    'status': obj.related_leave.status,
+                    'employee_name': f"{obj.related_leave.employee.first_name} {obj.related_leave.employee.last_name}"
+                }
+            except Exception:
+                return None
         return None
 
     def get_related_payroll_details(self, obj):
         if obj.related_payroll:
-            return {
-                'id': obj.related_payroll.id,
-                'pay_period_start': obj.related_payroll.pay_period_start,
-                'pay_period_end': obj.related_payroll.pay_period_end,
-                'net_pay': str(obj.related_payroll.net_pay),
-                'status': obj.related_payroll.status,
-                'employee_name': f"{obj.related_payroll.employee.first_name} {obj.related_payroll.employee.last_name}"
-            }
+            try:
+                return {
+                    'id': obj.related_payroll.id,
+                    'pay_period_start': obj.related_payroll.pay_period_start.strftime('%Y-%m-%d') if obj.related_payroll.pay_period_start else None,
+                    'pay_period_end': obj.related_payroll.pay_period_end.strftime('%Y-%m-%d') if obj.related_payroll.pay_period_end else None,
+                    'net_pay': str(obj.related_payroll.net_pay) if obj.related_payroll.net_pay else '0',
+                    'status': getattr(obj.related_payroll, 'status', 'processed'),
+                    'employee_name': f"{obj.related_payroll.employee.first_name} {obj.related_payroll.employee.last_name}"
+                }
+            except Exception:
+                return None
         return None
 
     def get_related_attendance_details(self, obj):
         if obj.related_attendance:
-            return {
-                'id': obj.related_attendance.id,
-                'date': obj.related_attendance.date,
-                'check_in_time': obj.related_attendance.check_in_time,
-                'check_out_time': obj.related_attendance.check_out_time,
-                'status': obj.related_attendance.status,
-                'employee_name': f"{obj.related_attendance.employee.first_name} {obj.related_attendance.employee.last_name}"
-            }
+            try:
+                return {
+                    'id': obj.related_attendance.id,
+                    'date': obj.related_attendance.date.strftime('%Y-%m-%d') if obj.related_attendance.date else None,
+                    'check_in_time': obj.related_attendance.check_in_time.strftime('%H:%M:%S') if obj.related_attendance.check_in_time else None,
+                    'check_out_time': obj.related_attendance.check_out_time.strftime('%H:%M:%S') if obj.related_attendance.check_out_time else None,
+                    'status': obj.related_attendance.status,
+                    'employee_name': f"{obj.related_attendance.employee.first_name} {obj.related_attendance.employee.last_name}"
+                }
+            except Exception:
+                return None
         return None
 
     def validate(self, data):
@@ -160,6 +173,19 @@ class NotificationCreateSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Must specify either recipient, recipient_department, or set is_global to True"
             )
+        
+        # Validate scheduled_for is in the future if provided
+        if data.get('scheduled_for') and data['scheduled_for'] <= timezone.now():
+            raise serializers.ValidationError(
+                "scheduled_for must be in the future"
+            )
+        
+        # Validate expires_at is in the future if provided
+        if data.get('expires_at') and data['expires_at'] <= timezone.now():
+            raise serializers.ValidationError(
+                "expires_at must be in the future"
+            )
+        
         return data
 
     def create(self, validated_data):
@@ -192,16 +218,29 @@ class BulkNotificationCreateSerializer(serializers.Serializer):
     is_global = serializers.BooleanField(default=False)
     
     # Optional fields
-    scheduled_for = serializers.DateTimeField(required=False)
-    action_url = serializers.URLField(required=False)
+    scheduled_for = serializers.DateTimeField(required=False, allow_null=True)
+    action_url = serializers.URLField(required=False, allow_blank=True)
     metadata = serializers.JSONField(default=dict)
-    expires_at = serializers.DateTimeField(required=False)
+    expires_at = serializers.DateTimeField(required=False, allow_null=True)
 
     def validate(self, data):
         if not data.get('recipient_ids') and not data.get('department_ids') and not data.get('is_global'):
             raise serializers.ValidationError(
                 "Must specify either recipient_ids, department_ids, or set is_global to True"
             )
+        
+        # Validate scheduled_for is in the future if provided
+        if data.get('scheduled_for') and data['scheduled_for'] <= timezone.now():
+            raise serializers.ValidationError(
+                "scheduled_for must be in the future"
+            )
+        
+        # Validate expires_at is in the future if provided
+        if data.get('expires_at') and data['expires_at'] <= timezone.now():
+            raise serializers.ValidationError(
+                "expires_at must be in the future"
+            )
+        
         return data
 
     def create(self, validated_data):
@@ -215,39 +254,48 @@ class BulkNotificationCreateSerializer(serializers.Serializer):
         department_ids = validated_data.pop('department_ids', [])
         is_global = validated_data.pop('is_global', False)
         
-        if is_global:
-            # Create notification for all users
-            recipients = CustomUser.objects.filter(is_active=True)
-            for recipient in recipients:
-                notification = Notification.objects.create(
-                    recipient=recipient,
-                    sender=sender,
-                    **validated_data
-                )
-                notifications.append(notification)
+        try:
+            if is_global:
+                # Create notification for all users
+                recipients = CustomUser.objects.filter(is_active=True)
+                for recipient in recipients:
+                    notification = Notification.objects.create(
+                        recipient=recipient,
+                        sender=sender,
+                        **validated_data
+                    )
+                    notifications.append(notification)
+            
+            elif department_ids:
+                # Create notifications for all employees in specified departments
+                from employees.models import Employee
+                employees = Employee.objects.filter(
+                    department_id__in=department_ids, 
+                    is_active=True
+                ).select_related('user')
+                for employee in employees:
+                    if employee.user and employee.user.is_active:
+                        notification = Notification.objects.create(
+                            recipient=employee.user,
+                            sender=sender,
+                            **validated_data
+                        )
+                        notifications.append(notification)
+            
+            elif recipient_ids:
+                # Create notifications for specific recipients
+                recipients = CustomUser.objects.filter(id__in=recipient_ids, is_active=True)
+                for recipient in recipients:
+                    notification = Notification.objects.create(
+                        recipient=recipient,
+                        sender=sender,
+                        **validated_data
+                    )
+                    notifications.append(notification)
         
-        elif department_ids:
-            # Create notifications for all employees in specified departments
-            from employees.models import Employee
-            employees = Employee.objects.filter(department_id__in=department_ids, is_active=True)
-            for employee in employees:
-                notification = Notification.objects.create(
-                    recipient=employee.user,
-                    sender=sender,
-                    **validated_data
-                )
-                notifications.append(notification)
-        
-        elif recipient_ids:
-            # Create notifications for specific recipients
-            recipients = CustomUser.objects.filter(id__in=recipient_ids, is_active=True)
-            for recipient in recipients:
-                notification = Notification.objects.create(
-                    recipient=recipient,
-                    sender=sender,
-                    **validated_data
-                )
-                notifications.append(notification)
+        except Exception as e:
+            # If any notification creation fails, we should handle it gracefully
+            raise serializers.ValidationError(f"Failed to create notifications: {str(e)}")
         
         return notifications
 
@@ -303,12 +351,27 @@ class MarkAsReadSerializer(serializers.Serializer):
     )
 
     def validate_notification_ids(self, value):
+        if not value:
+            raise serializers.ValidationError("notification_ids cannot be empty")
+        
         request = self.context.get('request')
         if request and request.user:
-            # Verify all notifications belong to the user
+            # Get user's employee department safely
+            employee_department = None
+            try:
+                if hasattr(request.user, 'employee') and request.user.employee:
+                    employee_department = request.user.employee.department
+            except Exception:
+                employee_department = None
+            
+            # Verify all notifications are accessible to the user
+            from django.db.models import Q
             user_notifications = Notification.objects.filter(
-                id__in=value,
-                recipient=request.user
+                id__in=value
+            ).filter(
+                Q(recipient=request.user) | 
+                Q(is_global=True) |
+                (Q(recipient_department=employee_department) if employee_department else Q(id__in=[]))
             ).values_list('id', flat=True)
             
             invalid_ids = set(value) - set(user_notifications)

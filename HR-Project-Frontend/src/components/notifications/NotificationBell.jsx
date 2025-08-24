@@ -7,6 +7,7 @@ const NotificationBell = () => {
   const { unreadCount, loadUnreadCount, notifications, loadNotifications, markAsRead } = useNotifications();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [recentNotifications, setRecentNotifications] = useState([]);
+  const [loadingRecent, setLoadingRecent] = useState(false);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -30,11 +31,17 @@ const NotificationBell = () => {
   }, []);
 
   const loadRecentNotifications = async () => {
+    setLoadingRecent(true);
     try {
-      await loadNotifications(1, { limit: 5 });
-      setRecentNotifications(notifications.slice(0, 5));
+      const response = await loadNotifications(1, { limit: 5 });
+      // Handle both response formats
+      const notificationList = response?.results || notifications?.slice(0, 5) || [];
+      setRecentNotifications(notificationList);
     } catch (error) {
       console.error('Failed to load recent notifications:', error);
+      setRecentNotifications([]);
+    } finally {
+      setLoadingRecent(false);
     }
   };
 
@@ -44,25 +51,41 @@ const NotificationBell = () => {
   };
 
   const handleNotificationClick = async (notification) => {
-    if (!notification.is_read) {
-      await markAsRead([notification.id]);
+    try {
+      if (!notification.is_read) {
+        await markAsRead([notification.id]);
+        // Update local state
+        setRecentNotifications(prev =>
+          prev.map(n => 
+            n.id === notification.id 
+              ? { ...n, is_read: true, read_at: new Date().toISOString() }
+              : n
+          )
+        );
+      }
+      setDropdownOpen(false);
+    } catch (error) {
+      console.error('Failed to mark notification as read:', error);
     }
-    setDropdownOpen(false);
   };
 
   const formatTimeAgo = (dateString) => {
-    const now = new Date();
-    const notificationDate = new Date(dateString);
-    const diffInMs = now - notificationDate;
-    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
-    const diffInHours = Math.floor(diffInMinutes / 60);
-    const diffInDays = Math.floor(diffInHours / 24);
+    try {
+      const now = new Date();
+      const notificationDate = new Date(dateString);
+      const diffInMs = now - notificationDate;
+      const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      const diffInDays = Math.floor(diffInHours / 24);
 
-    if (diffInMinutes < 1) return 'Just now';
-    if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    if (diffInDays < 7) return `${diffInDays}d ago`;
-    return notificationDate.toLocaleDateString();
+      if (diffInMinutes < 1) return 'Just now';
+      if (diffInMinutes < 60) return `${diffInMinutes}m ago`;
+      if (diffInHours < 24) return `${diffInHours}h ago`;
+      if (diffInDays < 7) return `${diffInDays}d ago`;
+      return notificationDate.toLocaleDateString();
+    } catch (error) {
+      return 'Unknown';
+    }
   };
 
   const getPriorityColor = (priority) => {
@@ -115,7 +138,15 @@ const NotificationBell = () => {
         </div>
 
         <div className="notification-list" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-          {recentNotifications.length > 0 ? (
+          {loadingRecent ? (
+            <div className="dropdown-item-text text-center py-3">
+              <div className="spinner-border spinner-border-sm" role="status">
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <br />
+              <small>Loading notifications...</small>
+            </div>
+          ) : recentNotifications && recentNotifications.length > 0 ? (
             recentNotifications.map((notification) => (
               <div
                 key={notification.id}
@@ -130,16 +161,16 @@ const NotificationBell = () => {
                   <div className="flex-fill">
                     <div className="d-flex justify-content-between align-items-start">
                       <h6 className="mb-1 text-truncate" style={{ fontSize: '0.9rem' }}>
-                        {notification.title}
+                        {notification.title || 'No Title'}
                       </h6>
                       <small className="text-muted ms-2">
                         {formatTimeAgo(notification.created_at)}
                       </small>
                     </div>
                     <p className="mb-1 text-muted" style={{ fontSize: '0.8rem', lineHeight: '1.2' }}>
-                      {notification.message.length > 80 
+                      {notification.message && notification.message.length > 80 
                         ? `${notification.message.substring(0, 80)}...` 
-                        : notification.message
+                        : notification.message || 'No message'
                       }
                     </p>
                     {notification.priority === 'Urgent' && (
@@ -160,7 +191,7 @@ const NotificationBell = () => {
           )}
         </div>
 
-        {recentNotifications.length > 0 && (
+        {recentNotifications && recentNotifications.length > 0 && (
           <>
             <div className="dropdown-divider"></div>
             <div className="dropdown-item-text text-center">
