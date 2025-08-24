@@ -1,6 +1,8 @@
+// Updated src/App.js
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 import Login from './components/auth/Login';
 import Dashboard from './components/dashboard/Dashboard';
 import EmployeeList from './components/employees/EmployeeList';
@@ -24,6 +26,10 @@ import AttendanceCreate from './components/attendance/AttendanceCreate';
 import AttendanceEdit from './components/attendance/AttendanceEdit';
 import MyAttendanceSummary from './components/attendance/MyAttendanceSummary';
 import AttendanceReports from './components/attendance/AttendanceReports';
+// Notification Components
+import NotificationList from './components/notifications/NotificationList';
+import NotificationCreate from './components/notifications/NotificationCreate';
+import NotificationPreferences from './components/notifications/NotificationPreferences';
 import Layout from './components/common/Layout';
 import LoadingSpinner from './components/common/LoadingSpinner';
 
@@ -273,6 +279,38 @@ const AppRoutes = () => {
         }
       />
 
+      {/* Notification Routes */}
+      <Route
+        path="/notifications"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NotificationList />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications/create"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'hr']}>
+            <Layout>
+              <NotificationCreate />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/notifications/preferences"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NotificationPreferences />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
       {/* Default Routes */}
       <Route path="/" element={<Navigate to="/dashboard" />} />
       <Route path="*" element={<Navigate to="/dashboard" />} />
@@ -283,11 +321,13 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <div className="App">
-          <AppRoutes />
-        </div>
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <div className="App">
+            <AppRoutes />
+          </div>
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

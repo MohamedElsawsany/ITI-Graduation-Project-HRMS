@@ -1,6 +1,8 @@
+// Updated src/components/common/Navbar.jsx
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import NotificationBell from '../notifications/NotificationBell';
 
 const Navbar = ({ toggleSidebar }) => {
   const { user, logout } = useAuth();
@@ -46,8 +48,12 @@ const Navbar = ({ toggleSidebar }) => {
           HR Management System
         </span>
 
-        <div className="navbar-nav ms-auto">
-          <div className="nav-item dropdown" ref={dropdownRef}>
+        <div className="navbar-nav ms-auto d-flex flex-row align-items-center">
+          {/* Notification Bell */}
+          <NotificationBell />
+          
+          {/* User Dropdown */}
+          <div className="nav-item dropdown ms-2" ref={dropdownRef}>
             <button
               className="btn btn-outline-light dropdown-toggle"
               onClick={toggleDropdown}
@@ -65,12 +71,26 @@ const Navbar = ({ toggleSidebar }) => {
               <li><hr className="dropdown-divider" /></li>
               <li>
                 <Link 
-                    to={`/employees/${user?.employee_id}`} 
-                    className="dropdown-item"
-                  >
-                    <i className="fas fa-user me-2"></i>
-                    Profile
-                  </Link>
+                  to={`/employees/${user?.employee_id}`} 
+                  className="dropdown-item"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  <i className="fas fa-user me-2"></i>
+                  Profile
+                </Link>
+              </li>
+              <li>
+                <Link 
+                  to="/notifications/preferences" 
+                  className="dropdown-item"
+                  onClick={() => setDropdownOpen(false)}
+                >
+                  <i className="fas fa-cog me-2"></i>
+                  Notification Settings
+                </Link>
+              </li>
+              <li><hr className="dropdown-divider" /></li>
+              <li>
                 <button className="dropdown-item" onClick={handleLogout}>
                   <i className="fas fa-sign-out-alt me-2"></i>
                   Logout

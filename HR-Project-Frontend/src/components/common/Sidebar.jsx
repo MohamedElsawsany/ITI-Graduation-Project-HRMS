@@ -1,4 +1,4 @@
-// src/components/common/Sidebar.jsx
+// Updated src/components/common/Sidebar.jsx
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -81,6 +81,19 @@ const Sidebar = ({ isVisible, onClose }) => {
       icon: 'fas fa-calendar-check',
       label: 'My Leave Requests',
       roles: ['admin', 'hr', 'employee']
+    },
+    // Add notification menu items
+    {
+      path: '/notifications',
+      icon: 'fas fa-bell',
+      label: 'Notifications',
+      roles: ['admin', 'hr', 'employee']
+    },
+    {
+      path: '/notifications/create',
+      icon: 'fas fa-paper-plane',
+      label: 'Send Notification',
+      roles: ['admin', 'hr']
     }
   ];
 
